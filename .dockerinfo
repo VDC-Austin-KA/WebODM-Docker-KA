@@ -1,0 +1,13 @@
+Docker Verification Attempt
+============================
+Date: 2026-03-07
+Environment: Windows 11 Pro with WSL/Git Bash
+
+Verification Command: docker --version && docker-compose --version
+Result: Docker not installed in current environment
+
+Notes:
+- The repository requires Docker and Docker Compose for deployment
+- Users must install Docker Desktop (Windows/Mac) or Docker Engine (Linux)
+- See docker-compose.yml for service definitions
+- See README.md for setup instructions
