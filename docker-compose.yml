@@ -1,0 +1,94 @@
+version: '3.8'
+
+services:
+  db:
+    image: opendronemap/webodm_db
+    container_name: webodm_db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ${WO_DB_DIR}:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  broker:
+    image: redis:7.0.10-alpine
+    container_name: webodm_broker
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  webapp:
+    image: opendronemap/webodm_webapp:latest
+    container_name: webodm_webapp
+    depends_on:
+      db:
+        condition: service_healthy
+      broker:
+        condition: service_healthy
+    volumes:
+      - ${WO_MEDIA_DIR}:/webodm/app/media
+    ports:
+      - "${WO_PORT}:8000"
+    environment:
+      - DATABASE_HOST=db
+      - DATABASE_PORT=5432
+      - DATABASE_NAME=${POSTGRES_DB}
+      - DATABASE_USER=${POSTGRES_USER}
+      - DATABASE_PASSWORD=${POSTGRES_PASSWORD}
+      - BROKER_URL=redis://broker:6379
+      - REDIS_URL=redis://broker:6379
+      - CELERY_BROKER_URL=redis://broker:6379
+      - CELERY_RESULT_BACKEND=redis://broker:6379
+      - WO_DEBUG=${WO_DEBUG}
+      - WO_LOG_LEVEL=${WO_LOG_LEVEL}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  worker:
+    image: opendronemap/webodm_webapp:latest
+    container_name: webodm_worker
+    command: celery -A app worker -l info
+    depends_on:
+      db:
+        condition: service_healthy
+      broker:
+        condition: service_healthy
+    volumes:
+      - ${WO_MEDIA_DIR}:/webodm/app/media
+    environment:
+      - DATABASE_HOST=db
+      - DATABASE_PORT=5432
+      - DATABASE_NAME=${POSTGRES_DB}
+      - DATABASE_USER=${POSTGRES_USER}
+      - DATABASE_PASSWORD=${POSTGRES_PASSWORD}
+      - BROKER_URL=redis://broker:6379
+      - REDIS_URL=redis://broker:6379
+      - CELERY_BROKER_URL=redis://broker:6379
+      - CELERY_RESULT_BACKEND=redis://broker:6379
+      - WO_DEBUG=${WO_DEBUG}
+      - WO_LOG_LEVEL=${WO_LOG_LEVEL}
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  media_data:
+
+networks:
+  default:
+    name: webodm_network
